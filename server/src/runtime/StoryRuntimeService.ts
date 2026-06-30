@@ -3,7 +3,7 @@ import {
   commitChoiceToRun,
   createReaderRun,
   listStorySummaries,
-  selectChoice
+  resolveChoice
 } from "@inkbranch/core";
 import { InMemoryStore } from "../db/inMemoryStore";
 import { SceneGenerator } from "../generator/sceneGenerator";
@@ -14,6 +14,11 @@ import { RuntimeHttpError } from "./errors";
 export interface RunResponse {
   run: ReaderRun;
   scene: SceneResult;
+}
+
+export interface ChooseInput {
+  choiceId?: string;
+  customChoiceText?: string;
 }
 
 export class StoryRuntimeService {
@@ -55,17 +60,17 @@ export class StoryRuntimeService {
     };
   }
 
-  async choose(runId: string, choiceId: string): Promise<RunResponse> {
+  async choose(runId: string, input: ChooseInput): Promise<RunResponse> {
     const record = this.store.getRun(runId);
 
     if (!record) {
       throw new RuntimeHttpError("Run not found.", 404);
     }
 
-    const choice = selectChoice(record.scene, choiceId);
+    const choice = resolveChoice(record.scene, record.run, input);
 
     if (!choice) {
-      throw new RuntimeHttpError("Choice not found for current scene.", 400);
+      throw new RuntimeHttpError("Choice not found or custom choice was empty.", 400);
     }
 
     const book = this.store.getBook(record.bookId);

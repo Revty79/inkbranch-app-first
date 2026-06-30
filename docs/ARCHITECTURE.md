@@ -34,6 +34,8 @@ The Expo app keeps screens focused on user experience:
 
 The app calls backend services through `src/services`. If the backend is not running, the shell falls back to local placeholder data so the reader UI remains usable during early development.
 
+The whole app should keep an old library feel: warm, bookish, calm, and immersive. Reader surfaces should not feel like a technical dashboard.
+
 ## AI Boundary
 
 Live providers are not connected in this phase. `packages/ai` exposes `AIProvider` and ships only `FakeAIProvider`. Future providers should implement the same interface:
@@ -43,3 +45,7 @@ generateScene(input: ScenePackage): Promise<SceneResult>
 ```
 
 The mobile app should not know which provider is used.
+
+## Choice Freedom
+
+Scenes render three structured choices, but readers can also type a custom choice. The backend treats custom text as reader intent, commits it into run canon, and asks the planner/generator for the next scene within the same story bible and canon constraints.

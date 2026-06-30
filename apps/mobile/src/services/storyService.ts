@@ -1,6 +1,6 @@
 import type { ReaderRun, SceneResult } from "@inkbranch/types";
 import { inkbranchApi } from "./inkbranchApi";
-import type { RunResponse, StorySummary } from "./inkbranchApi";
+import type { ChoiceInput, RunResponse, StorySummary } from "./inkbranchApi";
 import { localStoryService } from "./localStoryService";
 
 export const storyService = {
@@ -20,11 +20,11 @@ export const storyService = {
     }
   },
 
-  async choose(run: ReaderRun, scene: SceneResult, choiceId: string): Promise<RunResponse> {
+  async choose(run: ReaderRun, scene: SceneResult, input: ChoiceInput): Promise<RunResponse> {
     try {
-      return await inkbranchApi.choose(run.id, choiceId);
+      return await inkbranchApi.choose(run.id, input);
     } catch {
-      return localStoryService.choose(run, scene, choiceId);
+      return localStoryService.choose(run, scene, input);
     }
   }
 };

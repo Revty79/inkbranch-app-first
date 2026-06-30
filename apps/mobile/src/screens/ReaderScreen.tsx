@@ -1,6 +1,7 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { BookOpen } from "lucide-react-native";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import { BookOpen, Send } from "lucide-react-native";
+import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { ActionButton } from "../components/ActionButton";
 import { ChoiceButton } from "../components/ChoiceButton";
 import { ScreenShell } from "../components/ScreenShell";
@@ -11,7 +12,19 @@ import type { RootStackParamList } from "../navigation/types";
 type ReaderScreenProps = NativeStackScreenProps<RootStackParamList, "Reader">;
 
 export function ReaderScreen({ navigation }: ReaderScreenProps) {
-  const { currentRun, currentScene, selectedStory, loading, error, choose } = useReaderRun();
+  const { currentRun, currentScene, selectedStory, loading, error, choose, chooseCustomChoice } = useReaderRun();
+  const [customChoiceText, setCustomChoiceText] = useState("");
+
+  async function handleCustomChoice() {
+    const trimmedChoice = customChoiceText.trim();
+
+    if (!trimmedChoice) {
+      return;
+    }
+
+    await chooseCustomChoice(trimmedChoice);
+    setCustomChoiceText("");
+  }
 
   if (!currentRun || !currentScene) {
     return (
@@ -48,6 +61,25 @@ export function ReaderScreen({ navigation }: ReaderScreenProps) {
             <ChoiceButton key={choice.id} choice={choice} disabled={loading} onPress={choose} />
           ))}
         </View>
+
+        <View style={styles.customChoice}>
+          <TextInput
+            editable={!loading}
+            multiline
+            onChangeText={setCustomChoiceText}
+            placeholder="Write what happens next"
+            placeholderTextColor={colors.mutedInk}
+            style={styles.customChoiceInput}
+            textAlignVertical="top"
+            value={customChoiceText}
+          />
+          <ActionButton
+            label="Send"
+            icon={Send}
+            disabled={loading || !customChoiceText.trim()}
+            onPress={handleCustomChoice}
+          />
+        </View>
       </ScrollView>
     </ScreenShell>
   );
@@ -83,6 +115,26 @@ const styles = StyleSheet.create({
   },
   choices: {
     gap: 10
+  },
+  customChoice: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: 12,
+    gap: 10
+  },
+  customChoiceInput: {
+    minHeight: 86,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+    color: colors.ink,
+    fontSize: 16,
+    lineHeight: 22,
+    paddingHorizontal: 12,
+    paddingVertical: 10
   },
   status: {
     color: colors.mutedInk,

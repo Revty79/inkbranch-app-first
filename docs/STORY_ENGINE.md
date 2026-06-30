@@ -9,8 +9,8 @@ Inkbranch's engine turns an authored book and a reader run into structured scene
 3. Planner creates the next `ScenePackage`.
 4. Generator renders a `SceneResult` through the fake provider.
 5. Validator checks scene shape.
-6. Mobile app displays the scene and three choices.
-7. Reader selects a choice.
+6. Mobile app displays the scene, three choices, and a custom choice field.
+7. Reader selects a rendered choice or writes their own intent.
 8. Runtime commits the choice into reader canon.
 9. Next scene begins.
 
@@ -22,7 +22,7 @@ Inkbranch's engine turns an authored book and a reader run into structured scene
 - `ReaderRun`: A reader-specific path through a book.
 - `ScenePackage`: Approved input for generation, including canon, constraints, and current run state.
 - `SceneResult`: Structured generated scene output.
-- `Choice`: One of exactly three actions available to the reader.
+- `Choice`: One of exactly three rendered actions available to the reader, or a reader-written custom intent normalized into the same shape.
 - `CanonCommit`: A committed reader choice and its canon facts.
 - `MemoryUpdate`: Run memory derived from a committed scene and choice.
 

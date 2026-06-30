@@ -15,6 +15,7 @@ interface ReaderRunContextValue {
   refreshStories: () => Promise<void>;
   startStory: (storyId: string) => Promise<void>;
   choose: (choiceId: string) => Promise<void>;
+  chooseCustomChoice: (customChoiceText: string) => Promise<void>;
   clearError: () => void;
 }
 
@@ -67,8 +68,8 @@ export function ReaderRunProvider({ children }: PropsWithChildren) {
     }
   }, []);
 
-  const choose = useCallback(
-    async (choiceId: string) => {
+  const commitChoice = useCallback(
+    async (input: { choiceId?: string; customChoiceText?: string }) => {
       if (!currentRun || !currentScene) {
         setError("No active run.");
         return;
@@ -78,7 +79,7 @@ export function ReaderRunProvider({ children }: PropsWithChildren) {
       setError(undefined);
 
       try {
-        const result = await storyService.choose(currentRun, currentScene, choiceId);
+        const result = await storyService.choose(currentRun, currentScene, input);
         setCurrentRun(result.run);
         setCurrentScene(result.scene);
         setRunHistory((history) => upsertRun(history, result.run));
@@ -89,6 +90,16 @@ export function ReaderRunProvider({ children }: PropsWithChildren) {
       }
     },
     [currentRun, currentScene]
+  );
+
+  const choose = useCallback(
+    (choiceId: string) => commitChoice({ choiceId }),
+    [commitChoice]
+  );
+
+  const chooseCustomChoice = useCallback(
+    (customChoiceText: string) => commitChoice({ customChoiceText }),
+    [commitChoice]
   );
 
   useEffect(() => {
@@ -112,9 +123,10 @@ export function ReaderRunProvider({ children }: PropsWithChildren) {
       refreshStories,
       startStory,
       choose,
+      chooseCustomChoice,
       clearError: () => setError(undefined)
     }),
-    [choose, currentRun, currentScene, error, loading, refreshStories, runHistory, selectedStory, startStory, stories]
+    [choose, chooseCustomChoice, currentRun, currentScene, error, loading, refreshStories, runHistory, selectedStory, startStory, stories]
   );
 
   return <ReaderRunContext.Provider value={value}>{children}</ReaderRunContext.Provider>;

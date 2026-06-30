@@ -1,5 +1,5 @@
 import type { CanonCommit, Choice, MemoryUpdate, ReaderRun, SceneResult } from "@inkbranch/types";
-import type { RunResponse, StorySummary } from "./inkbranchApi";
+import type { ChoiceInput, RunResponse, StorySummary } from "./inkbranchApi";
 
 const localStory: StorySummary = {
   id: "book-saltglass-letter",
@@ -60,6 +60,21 @@ function buildScene(run: ReaderRun, previousChoice?: Choice): SceneResult {
   };
 }
 
+function createCustomChoice(run: ReaderRun, customChoiceText: string): Choice | undefined {
+  const normalizedText = customChoiceText.replace(/\s+/g, " ").trim();
+
+  if (!normalizedText) {
+    return undefined;
+  }
+
+  return {
+    id: `local-custom-${run.id}-${run.selectedChoiceIds.length + 1}`,
+    label: normalizedText.length > 72 ? `${normalizedText.slice(0, 69)}...` : normalizedText,
+    intent: normalizedText,
+    risk: "medium"
+  };
+}
+
 export const localStoryService = {
   async getStories(): Promise<StorySummary[]> {
     return [localStory];
@@ -86,8 +101,12 @@ export const localStoryService = {
     };
   },
 
-  async choose(run: ReaderRun, scene: SceneResult, choiceId: string): Promise<RunResponse> {
-    const choice = scene.choices.find((candidate) => candidate.id === choiceId);
+  async choose(run: ReaderRun, scene: SceneResult, input: ChoiceInput): Promise<RunResponse> {
+    const choice = input.choiceId
+      ? scene.choices.find((candidate) => candidate.id === input.choiceId)
+      : input.customChoiceText
+        ? createCustomChoice(run, input.customChoiceText)
+        : undefined;
 
     if (!choice) {
       throw new Error("Choice not found.");
@@ -107,7 +126,7 @@ export const localStoryService = {
     const canonCommit: CanonCommit = {
       id: createId("local-commit"),
       runId: run.id,
-      choiceId,
+      choiceId: choice.id,
       summary: choice.intent,
       canonFacts: [...scene.stateChanges.canonFacts, `Reader chose: ${choice.intent}`],
       memoryUpdates: [memoryUpdate],
@@ -117,7 +136,7 @@ export const localStoryService = {
       ...run,
       currentChapter: Math.floor(nextChoiceCount / 3) + 1,
       currentSceneId: `local-scene-${nextChoiceCount + 1}`,
-      selectedChoiceIds: [...run.selectedChoiceIds, choiceId],
+      selectedChoiceIds: [...run.selectedChoiceIds, choice.id],
       canonCommits: [...run.canonCommits, canonCommit],
       memory: [...run.memory, memoryUpdate],
       updatedAt: now

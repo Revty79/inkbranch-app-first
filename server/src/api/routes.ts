@@ -49,10 +49,10 @@ export function createApiRouter(service: StoryRuntimeService = new StoryRuntimeS
 
   router.post("/runs/:runId/choose", async (request: Request, response: Response, next: NextFunction) => {
     try {
-      const body = request.body as { choiceId?: string };
+      const body = request.body as { choiceId?: string; customChoiceText?: string };
 
-      if (!body.choiceId) {
-        response.status(400).json({ error: { message: "choiceId is required." } });
+      if (!body.choiceId && !body.customChoiceText) {
+        response.status(400).json({ error: { message: "choiceId or customChoiceText is required." } });
         return;
       }
 
@@ -63,7 +63,10 @@ export function createApiRouter(service: StoryRuntimeService = new StoryRuntimeS
         return;
       }
 
-      const result = await service.choose(runId, body.choiceId);
+      const result = await service.choose(runId, {
+        choiceId: body.choiceId,
+        customChoiceText: body.customChoiceText
+      });
       response.json(result);
     } catch (error) {
       next(error);

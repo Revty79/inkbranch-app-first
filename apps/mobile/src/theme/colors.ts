@@ -1,13 +1,13 @@
 export const colors = {
-  background: "#F7F4EF",
-  surface: "#FFFFFF",
-  surfaceMuted: "#EFE8DD",
-  ink: "#1D2230",
-  mutedInk: "#5D6575",
-  border: "#D9D0C2",
-  cedar: "#9A3B3B",
-  moss: "#2F604F",
-  amber: "#C28B2C",
-  blueInk: "#263E63",
+  background: "#F1E6D2",
+  surface: "#FFF8EC",
+  surfaceMuted: "#E7D9C3",
+  ink: "#241B15",
+  mutedInk: "#6B5A49",
+  border: "#C7B394",
+  cedar: "#8E3C2D",
+  moss: "#315942",
+  amber: "#A97724",
+  blueInk: "#283D56",
   danger: "#A83D3D"
 };

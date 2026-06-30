@@ -8,6 +8,8 @@ Use these instructions for future Codex and development work on Inkbranch.
 - Preserve the book-first, world-first architecture.
 - Keep author canon above generated scene text.
 - Keep reader choices committed as run canon.
+- Preserve reader freedom by supporting typed custom choices alongside rendered choices.
+- Preserve the old library feel across the whole app.
 - Do not overbuild before the story loop works.
 
 ## Security

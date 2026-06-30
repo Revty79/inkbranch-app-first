@@ -15,6 +15,11 @@ export interface RunResponse {
   scene: SceneResult;
 }
 
+export interface ChoiceInput {
+  choiceId?: string;
+  customChoiceText?: string;
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
@@ -44,10 +49,10 @@ export const inkbranchApi = {
     });
   },
 
-  choose(runId: string, choiceId: string): Promise<RunResponse> {
+  choose(runId: string, input: ChoiceInput): Promise<RunResponse> {
     return request<RunResponse>(`/runs/${runId}/choose`, {
       method: "POST",
-      body: JSON.stringify({ choiceId })
+      body: JSON.stringify(input)
     });
   }
 };

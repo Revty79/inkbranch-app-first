@@ -18,6 +18,11 @@ export interface CommitChoiceInput {
   now?: string;
 }
 
+export interface ChoiceResolutionInput {
+  choiceId?: string;
+  customChoiceText?: string;
+}
+
 function createId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -109,4 +114,37 @@ export function commitChoiceToRun(input: CommitChoiceInput): ReaderRun {
 
 export function selectChoice(sceneResult: SceneResult, choiceId: string): Choice | undefined {
   return sceneResult.choices.find((choice) => choice.id === choiceId);
+}
+
+export function createCustomChoice(run: ReaderRun, customChoiceText: string): Choice | undefined {
+  const normalizedText = customChoiceText.replace(/\s+/g, " ").trim();
+
+  if (!normalizedText) {
+    return undefined;
+  }
+
+  const label = normalizedText.length > 72 ? `${normalizedText.slice(0, 69)}...` : normalizedText;
+
+  return {
+    id: `custom-${run.id}-${run.selectedChoiceIds.length + 1}`,
+    label,
+    intent: normalizedText,
+    risk: "medium"
+  };
+}
+
+export function resolveChoice(
+  sceneResult: SceneResult,
+  run: ReaderRun,
+  input: ChoiceResolutionInput
+): Choice | undefined {
+  if (input.choiceId) {
+    return selectChoice(sceneResult, input.choiceId);
+  }
+
+  if (input.customChoiceText) {
+    return createCustomChoice(run, input.customChoiceText);
+  }
+
+  return undefined;
 }
