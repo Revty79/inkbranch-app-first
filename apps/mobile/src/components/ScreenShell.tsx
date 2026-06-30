@@ -1,0 +1,24 @@
+import type { PropsWithChildren } from "react";
+import { StyleSheet, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { colors } from "../theme/colors";
+
+export function ScreenShell({ children }: PropsWithChildren) {
+  return (
+    <SafeAreaView style={styles.safeArea} edges={["left", "right", "bottom"]}>
+      <View style={styles.container}>{children}</View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: colors.background
+  },
+  container: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 18
+  }
+});
