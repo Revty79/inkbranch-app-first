@@ -31,10 +31,23 @@ export interface SceneStateChanges {
   warnings: string[];
 }
 
+export interface SceneProgress {
+  beatId: string;
+  locationId: string;
+  locationName: string;
+  dangerLevel: number;
+  turnCount: number;
+  activeFlags: string[];
+  discoveries: string[];
+  relationshipSummary: string[];
+  canonValidity?: string;
+}
+
 export interface SceneResult {
   chapterTitle: string;
   sceneText: string;
   choices: Choice[];
   stateChanges: SceneStateChanges;
   memoryUpdate: string;
+  storyProgress?: SceneProgress;
 }

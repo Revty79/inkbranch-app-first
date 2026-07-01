@@ -88,6 +88,15 @@ export const localStoryService = {
       status: "active",
       currentChapter: 1,
       currentSceneId: "scene-saltglass-opening",
+      storyState: {
+        currentBeatId: "scene-saltglass-opening",
+        currentLocationId: "loc-saltglass-harbor",
+        flags: {},
+        relationships: {},
+        dangerLevel: 1,
+        discoveries: [],
+        turnCount: 0
+      },
       selectedChoiceIds: [],
       canonCommits: [],
       memory: [],
@@ -136,6 +145,25 @@ export const localStoryService = {
       ...run,
       currentChapter: Math.floor(nextChoiceCount / 3) + 1,
       currentSceneId: `local-scene-${nextChoiceCount + 1}`,
+      storyState: {
+        ...run.storyState,
+        currentBeatId: `local-scene-${nextChoiceCount + 1}`,
+        turnCount: run.storyState.turnCount + 1,
+        lastChoiceResolution: input.choiceId
+          ? {
+              type: "preset",
+              interpretedIntent: choice.intent,
+              canonValidity: "valid",
+              notes: ["Local fallback preset choice."]
+            }
+          : {
+              type: "custom",
+              originalText: choice.intent,
+              interpretedIntent: choice.intent,
+              canonValidity: "valid",
+              notes: ["Local fallback custom choice."]
+            }
+      },
       selectedChoiceIds: [...run.selectedChoiceIds, choice.id],
       canonCommits: [...run.canonCommits, canonCommit],
       memory: [...run.memory, memoryUpdate],

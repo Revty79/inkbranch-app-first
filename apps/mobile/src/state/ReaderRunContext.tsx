@@ -14,6 +14,7 @@ interface ReaderRunContextValue {
   error?: string;
   refreshStories: () => Promise<void>;
   startStory: (storyId: string) => Promise<void>;
+  restartCurrentRun: () => Promise<void>;
   choose: (choiceId: string) => Promise<void>;
   chooseCustomChoice: (customChoiceText: string) => Promise<void>;
   clearError: () => void;
@@ -102,6 +103,17 @@ export function ReaderRunProvider({ children }: PropsWithChildren) {
     [commitChoice]
   );
 
+  const restartCurrentRun = useCallback(async () => {
+    const storyId = currentRun?.bookId ?? stories[0]?.id;
+
+    if (!storyId) {
+      setError("No story available to restart.");
+      return;
+    }
+
+    await startStory(storyId);
+  }, [currentRun?.bookId, startStory, stories]);
+
   useEffect(() => {
     void refreshStories();
   }, [refreshStories]);
@@ -122,11 +134,12 @@ export function ReaderRunProvider({ children }: PropsWithChildren) {
       error,
       refreshStories,
       startStory,
+      restartCurrentRun,
       choose,
       chooseCustomChoice,
       clearError: () => setError(undefined)
     }),
-    [choose, chooseCustomChoice, currentRun, currentScene, error, loading, refreshStories, runHistory, selectedStory, startStory, stories]
+    [choose, chooseCustomChoice, currentRun, currentScene, error, loading, refreshStories, restartCurrentRun, runHistory, selectedStory, startStory, stories]
   );
 
   return <ReaderRunContext.Provider value={value}>{children}</ReaderRunContext.Provider>;

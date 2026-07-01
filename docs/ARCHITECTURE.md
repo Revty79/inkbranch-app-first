@@ -7,7 +7,7 @@ Inkbranch uses an app-first monorepo. The mobile app is the primary user surface
 - `apps/mobile`: Expo React Native shell for reading, choosing, and run history.
 - `server`: Node.js TypeScript backend with health, story, run, and choice routes.
 - `packages/types`: Shared TypeScript contracts for books, canon, runs, scenes, choices, and AI.
-- `packages/core`: Domain constants, sample story data, runtime helpers, and validation utilities.
+- `packages/core`: Story-pack contract, Saltglass sample story, runtime helpers, and validation utilities.
 - `packages/ai`: AI provider interface exports and the fake local provider.
 - `docs`: Product doctrine, architecture notes, engine notes, and development guardrails.
 
@@ -38,7 +38,7 @@ The whole app should keep an old library feel: warm, bookish, calm, and immersiv
 
 ## AI Boundary
 
-Live providers are not connected in this phase. `packages/ai` exposes `AIProvider` and ships only `FakeAIProvider`. Future providers should implement the same interface:
+Live providers are not connected in this phase. `packages/ai` exposes `AIProvider` and ships only `FakeAIProvider`. The fake provider currently renders from registered story packs instead of calling external APIs. Future live providers should implement the same interface:
 
 ```ts
 generateScene(input: ScenePackage): Promise<SceneResult>
@@ -49,3 +49,5 @@ The mobile app should not know which provider is used.
 ## Choice Freedom
 
 Scenes render three structured choices, but readers can also type a custom choice. The backend treats custom text as reader intent, commits it into run canon, and asks the planner/generator for the next scene within the same story bible and canon constraints.
+
+Custom choices are interpreted by story-pack `choiceRules`. Resolutions are marked `valid`, `adapted`, or `blocked` so reader freedom stays compatible with author canon.

@@ -1,4 +1,5 @@
 import type { AIProvider, Choice, ScenePackage, SceneResult } from "@inkbranch/types";
+import { renderSceneFromStoryPack } from "@inkbranch/core";
 
 const choiceBlueprints: Array<Omit<Choice, "id">> = [
   {
@@ -35,6 +36,12 @@ export class FakeAIProvider implements AIProvider {
   readonly displayName = "Fake Local Scene Provider";
 
   async generateScene(input: ScenePackage): Promise<SceneResult> {
+    const packedScene = renderSceneFromStoryPack(input);
+
+    if (packedScene) {
+      return packedScene;
+    }
+
     const requiredEvent = input.requiredEvents[0];
     const requiredLine = requiredEvent
       ? `The scene bends toward canon: ${requiredEvent.description}`

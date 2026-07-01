@@ -15,6 +15,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@inkbranch/core": "0.1.0",
     "@inkbranch/types": "0.1.0"
   },
   "devDependencies": {

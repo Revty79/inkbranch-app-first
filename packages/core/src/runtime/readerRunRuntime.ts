@@ -1,4 +1,15 @@
-import type { Book, CanonCommit, Choice, MemoryUpdate, ReaderRun, ScenePackage, SceneResult } from "@inkbranch/types";
+import type {
+  Book,
+  CanonCommit,
+  Choice,
+  MemoryUpdate,
+  ReaderRun,
+  ScenePackage,
+  SceneResult,
+  StoryRunState
+} from "@inkbranch/types";
+import type { ResolvedStoryChoice, StoryChoiceEffect } from "../sampleStories/types";
+import { getStoryPack, resolveChoiceFromStoryPack } from "../sampleStories/registry";
 
 export interface CreateReaderRunOptions {
   runId?: string;
@@ -13,7 +24,7 @@ export interface CreateScenePackageInput {
 
 export interface CommitChoiceInput {
   run: ReaderRun;
-  choice: Choice;
+  resolvedChoice: ResolvedStoryChoice;
   sceneResult: SceneResult;
   now?: string;
 }
@@ -31,8 +42,59 @@ function nowIso(now?: string): string {
   return now ?? new Date().toISOString();
 }
 
+function createFallbackStoryState(book: Book): StoryRunState {
+  return {
+    currentBeatId: book.spine.openingSceneId,
+    currentLocationId: book.world.locations[0]?.id ?? "unknown",
+    flags: {},
+    relationships: {},
+    dangerLevel: 1,
+    discoveries: [],
+    turnCount: 0
+  };
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function unique(values: string[]): string[] {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function applyEffectToStoryState(
+  run: ReaderRun,
+  resolvedChoice: ResolvedStoryChoice,
+  effect: StoryChoiceEffect
+): StoryRunState {
+  const previousState = run.storyState;
+  const relationships = { ...previousState.relationships };
+
+  Object.entries(effect.relationshipDeltas ?? {}).forEach(([characterId, delta]) => {
+    relationships[characterId] = clamp((relationships[characterId] ?? 0) + delta, -3, 3);
+  });
+
+  return {
+    ...previousState,
+    currentBeatId: resolvedChoice.nextBeatId,
+    currentLocationId: resolvedChoice.nextLocationId,
+    flags: {
+      ...previousState.flags,
+      ...effect.setFlags
+    },
+    relationships,
+    dangerLevel: clamp(previousState.dangerLevel + (effect.dangerDelta ?? 0), 0, 6),
+    discoveries: unique([...previousState.discoveries, ...(effect.discoveries ?? [])]),
+    turnCount: previousState.turnCount + 1,
+    endingDirection: effect.endingDirection ?? previousState.endingDirection,
+    completedEndingId: resolvedChoice.completedEndingId ?? previousState.completedEndingId,
+    lastChoiceResolution: resolvedChoice.resolution
+  };
+}
+
 export function createReaderRun(book: Book, options: CreateReaderRunOptions = {}): ReaderRun {
   const timestamp = nowIso(options.now);
+  const storyPack = getStoryPack(book.id);
 
   return {
     id: options.runId ?? createId("run"),
@@ -40,6 +102,7 @@ export function createReaderRun(book: Book, options: CreateReaderRunOptions = {}
     status: "active",
     currentChapter: 1,
     currentSceneId: book.spine.openingSceneId,
+    storyState: storyPack?.createInitialState() ?? createFallbackStoryState(book),
     selectedChoiceIds: [],
     canonCommits: [],
     memory: [],
@@ -81,21 +144,31 @@ export function createNextScenePackage(input: CreateScenePackageInput): ScenePac
 export function commitChoiceToRun(input: CommitChoiceInput): ReaderRun {
   const timestamp = nowIso(input.now);
   const nextChoiceCount = input.run.selectedChoiceIds.length + 1;
-  const canonFacts = [...input.sceneResult.stateChanges.canonFacts, `Reader chose: ${input.choice.intent}`];
+  const effect = input.resolvedChoice.effects;
+  const nextStoryState = applyEffectToStoryState(input.run, input.resolvedChoice, effect);
+  const canonFacts = unique([
+    ...input.sceneResult.stateChanges.canonFacts,
+    ...(effect.canonFacts ?? []),
+    `Reader chose: ${input.resolvedChoice.intent}`
+  ]);
   const memoryUpdate: MemoryUpdate = {
     id: createId("memory"),
-    summary: input.sceneResult.memoryUpdate,
-    characterUpdates: input.sceneResult.stateChanges.characterUpdates,
-    locationUpdates: input.sceneResult.stateChanges.locationUpdates,
+    summary: [input.sceneResult.memoryUpdate, effect.memory].filter(Boolean).join(" "),
+    characterUpdates: [...input.sceneResult.stateChanges.characterUpdates, ...(effect.characterUpdates ?? [])],
+    locationUpdates: [...input.sceneResult.stateChanges.locationUpdates, ...(effect.locationUpdates ?? [])],
     canonFacts,
-    warnings: input.sceneResult.stateChanges.warnings,
+    warnings: [
+      ...input.sceneResult.stateChanges.warnings,
+      ...(effect.warnings ?? []),
+      ...input.resolvedChoice.resolution.notes
+    ],
     createdAt: timestamp
   };
   const canonCommit: CanonCommit = {
     id: createId("commit"),
     runId: input.run.id,
-    choiceId: input.choice.id,
-    summary: input.choice.intent,
+    choiceId: input.resolvedChoice.choiceId,
+    summary: input.resolvedChoice.intent,
     canonFacts,
     memoryUpdates: [memoryUpdate],
     committedAt: timestamp
@@ -103,9 +176,11 @@ export function commitChoiceToRun(input: CommitChoiceInput): ReaderRun {
 
   return {
     ...input.run,
-    currentChapter: Math.floor(nextChoiceCount / 3) + 1,
-    currentSceneId: `scene-${nextChoiceCount + 1}`,
-    selectedChoiceIds: [...input.run.selectedChoiceIds, input.choice.id],
+    status: input.resolvedChoice.completedEndingId ? "completed" : input.run.status,
+    currentChapter: Math.min(Math.floor(nextChoiceCount / 3) + 1, 5),
+    currentSceneId: input.resolvedChoice.nextBeatId,
+    storyState: nextStoryState,
+    selectedChoiceIds: [...input.run.selectedChoiceIds, input.resolvedChoice.choiceId],
     canonCommits: [...input.run.canonCommits, canonCommit],
     memory: [...input.run.memory, memoryUpdate],
     updatedAt: timestamp
@@ -137,13 +212,73 @@ export function resolveChoice(
   sceneResult: SceneResult,
   run: ReaderRun,
   input: ChoiceResolutionInput
-): Choice | undefined {
+): ResolvedStoryChoice | undefined {
+  const storyPackChoice = resolveChoiceFromStoryPack({
+    run,
+    scene: sceneResult,
+    choiceId: input.choiceId,
+    customChoiceText: input.customChoiceText
+  });
+
+  if (storyPackChoice) {
+    return storyPackChoice;
+  }
+
   if (input.choiceId) {
-    return selectChoice(sceneResult, input.choiceId);
+    const choice = selectChoice(sceneResult, input.choiceId);
+
+    if (!choice) {
+      return undefined;
+    }
+
+    return {
+      choiceId: choice.id,
+      label: choice.label,
+      intent: choice.intent,
+      intentKey: "investigation",
+      risk: choice.risk,
+      nextBeatId: `scene-${run.selectedChoiceIds.length + 2}`,
+      nextLocationId: run.storyState.currentLocationId,
+      effects: {
+        canonFacts: [`Reader chose: ${choice.intent}`],
+        memory: choice.intent
+      },
+      resolution: {
+        type: "preset",
+        interpretedIntent: choice.intent,
+        canonValidity: "valid",
+        notes: ["Fallback preset choice resolution."]
+      }
+    };
   }
 
   if (input.customChoiceText) {
-    return createCustomChoice(run, input.customChoiceText);
+    const choice = createCustomChoice(run, input.customChoiceText);
+
+    if (!choice) {
+      return undefined;
+    }
+
+    return {
+      choiceId: choice.id,
+      label: choice.label,
+      intent: choice.intent,
+      intentKey: "investigation",
+      risk: choice.risk,
+      nextBeatId: `scene-${run.selectedChoiceIds.length + 2}`,
+      nextLocationId: run.storyState.currentLocationId,
+      effects: {
+        canonFacts: [`Reader wrote: ${choice.intent}`],
+        memory: choice.intent
+      },
+      resolution: {
+        type: "custom",
+        originalText: choice.intent,
+        interpretedIntent: "custom",
+        canonValidity: "valid",
+        notes: ["Fallback custom choice resolution."]
+      }
+    };
   }
 
   return undefined;

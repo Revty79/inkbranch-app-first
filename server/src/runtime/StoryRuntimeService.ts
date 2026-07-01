@@ -67,9 +67,13 @@ export class StoryRuntimeService {
       throw new RuntimeHttpError("Run not found.", 404);
     }
 
-    const choice = resolveChoice(record.scene, record.run, input);
+    if (record.run.status === "completed") {
+      throw new RuntimeHttpError("Run is already complete. Start a new run to continue.", 400);
+    }
 
-    if (!choice) {
+    const resolvedChoice = resolveChoice(record.scene, record.run, input);
+
+    if (!resolvedChoice) {
       throw new RuntimeHttpError("Choice not found or custom choice was empty.", 400);
     }
 
@@ -81,13 +85,18 @@ export class StoryRuntimeService {
 
     const nextRun = commitChoiceToRun({
       run: record.run,
-      choice,
+      resolvedChoice,
       sceneResult: record.scene
     });
     const scenePackage = planNextScene({
       book,
       run: nextRun,
-      previousChoice: choice
+      previousChoice: {
+        id: resolvedChoice.choiceId,
+        label: resolvedChoice.label,
+        intent: resolvedChoice.intent,
+        risk: resolvedChoice.risk
+      }
     });
     const scene = await this.generator.generate(scenePackage);
     assertValidSceneResult(scene);
