@@ -1,6 +1,6 @@
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useState } from "react";
-import { BookOpen, RotateCcw, Send } from "lucide-react-native";
+import { BookOpen, Bug, EyeOff, RotateCcw, Send } from "lucide-react-native";
 import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { ActionButton } from "../components/ActionButton";
 import { ChoiceButton } from "../components/ChoiceButton";
@@ -12,9 +12,20 @@ import type { RootStackParamList } from "../navigation/types";
 type ReaderScreenProps = NativeStackScreenProps<RootStackParamList, "Reader">;
 
 export function ReaderScreen({ navigation }: ReaderScreenProps) {
-  const { currentRun, currentScene, selectedStory, loading, error, choose, chooseCustomChoice, restartCurrentRun } =
-    useReaderRun();
+  const {
+    currentRun,
+    currentScene,
+    selectedStory,
+    loading,
+    error,
+    engineMode,
+    backendWarning,
+    choose,
+    chooseCustomChoice,
+    restartCurrentRun
+  } = useReaderRun();
   const [customChoiceText, setCustomChoiceText] = useState("");
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
 
   async function handleCustomChoice() {
     const trimmedChoice = customChoiceText.trim();
@@ -43,6 +54,8 @@ export function ReaderScreen({ navigation }: ReaderScreenProps) {
     .map(([flag]) => flag);
   const canonFacts = currentRun.canonCommits.flatMap((commit) => commit.canonFacts).slice(-5);
   const isCompleted = currentRun.status === "completed";
+  const lastChoiceResolution = currentRun.storyState.lastChoiceResolution;
+  const modeLabel = engineMode === "backend" ? "Backend connected" : engineMode === "fallback" ? "Local fallback mode" : "Unknown";
 
   return (
     <ScreenShell>
@@ -66,6 +79,12 @@ export function ReaderScreen({ navigation }: ReaderScreenProps) {
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
         {loading ? <Text style={styles.status}>Loading next scene...</Text> : null}
+        {backendWarning ? (
+          <Text style={styles.warning}>
+            Failed {backendWarning.apiUrl}
+            {backendWarning.route}; local fallback is active.
+          </Text>
+        ) : null}
 
         {isCompleted ? (
           <ActionButton label="Start Over" icon={RotateCcw} disabled={loading} onPress={restartCurrentRun} />
@@ -99,24 +118,48 @@ export function ReaderScreen({ navigation }: ReaderScreenProps) {
           </>
         )}
 
-        <View style={styles.debugPanel}>
-          <Text style={styles.debugTitle}>Memory and canon so far</Text>
-          <Text style={styles.debugLine}>
-            Flags: {activeFlags.length ? activeFlags.join(", ") : "none yet"}
-          </Text>
-          <Text style={styles.debugLine}>
-            Last choice: {currentRun.storyState.lastChoiceResolution?.canonValidity ?? "none"}
-          </Text>
-          {canonFacts.length ? (
-            canonFacts.map((fact) => (
-              <Text key={fact} style={styles.debugFact}>
-                {fact}
-              </Text>
-            ))
-          ) : (
-            <Text style={styles.debugLine}>No committed canon yet.</Text>
-          )}
-        </View>
+        {__DEV__ ? (
+          <ActionButton
+            label={showDebugPanel ? "Hide Debug" : "Show Debug"}
+            icon={showDebugPanel ? EyeOff : Bug}
+            variant="secondary"
+            onPress={() => setShowDebugPanel((visible) => !visible)}
+          />
+        ) : null}
+
+        {showDebugPanel ? (
+          <View style={styles.debugPanel}>
+            <Text style={styles.debugTitle}>Story Debug</Text>
+            <Text style={styles.debugLine}>Mode: {modeLabel}</Text>
+            <Text style={styles.debugLine}>Run id: {currentRun.id}</Text>
+            <Text style={styles.debugLine}>currentSceneId: {currentRun.currentSceneId}</Text>
+            <Text style={styles.debugLine}>currentBeatId: {currentRun.storyState.currentBeatId}</Text>
+            <Text style={styles.debugLine}>
+              Location: {currentScene.storyProgress?.locationName ?? currentRun.storyState.currentLocationId}
+            </Text>
+            <Text style={styles.debugLine}>Turn count: {currentRun.storyState.turnCount}</Text>
+            <Text style={styles.debugLine}>Active flags: {activeFlags.length ? activeFlags.join(", ") : "none yet"}</Text>
+            <Text style={styles.debugLine}>
+              Last choice:{" "}
+              {lastChoiceResolution
+                ? `${lastChoiceResolution.interpretedIntent} / ${lastChoiceResolution.canonValidity}`
+                : "none"}
+            </Text>
+            {lastChoiceResolution?.notes.length ? (
+              <Text style={styles.debugLine}>Resolution notes: {lastChoiceResolution.notes.join(" ")}</Text>
+            ) : null}
+            <Text style={styles.debugTitle}>Memory and canon so far</Text>
+            {canonFacts.length ? (
+              canonFacts.map((fact) => (
+                <Text key={fact} style={styles.debugFact}>
+                  {fact}
+                </Text>
+              ))
+            ) : (
+              <Text style={styles.debugLine}>No committed canon yet.</Text>
+            )}
+          </View>
+        ) : null}
 
         {!isCompleted ? (
           <ActionButton label="Start Over" icon={RotateCcw} variant="secondary" disabled={loading} onPress={restartCurrentRun} />
@@ -219,6 +262,12 @@ const styles = StyleSheet.create({
     color: colors.danger,
     fontSize: 14,
     lineHeight: 20
+  },
+  warning: {
+    color: colors.cedar,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "700"
   },
   empty: {
     flex: 1,

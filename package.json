@@ -11,6 +11,10 @@
   "scripts": {
     "dev:mobile": "npm run start --workspace apps/mobile",
     "dev:server": "npm run dev --workspace server",
+    "check:story-progression": "tsx scripts/check-saltglass-progression.ts",
     "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "tsx": "^4.22.4"
   }
 }

@@ -1,6 +1,18 @@
 import type { ReaderRun, SceneResult } from "@inkbranch/types";
 
-const API_URL = process.env.EXPO_PUBLIC_INKBRANCH_API_URL ?? "http://localhost:4000";
+export const INKBRANCH_API_URL = process.env.EXPO_PUBLIC_INKBRANCH_API_URL ?? "http://localhost:4000";
+
+export class InkbranchApiError extends Error {
+  constructor(
+    readonly apiUrl: string,
+    readonly route: string,
+    message: string,
+    readonly status?: number
+  ) {
+    super(message);
+    this.name = "InkbranchApiError";
+  }
+}
 
 export interface StorySummary {
   id: string;
@@ -21,16 +33,36 @@ export interface ChoiceInput {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers
-    }
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${INKBRANCH_API_URL}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers
+      }
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Network request failed.";
+    throw new InkbranchApiError(INKBRANCH_API_URL, path, message);
+  }
 
   if (!response.ok) {
-    throw new Error(`Inkbranch API request failed with ${response.status}`);
+    let body = "";
+
+    try {
+      body = await response.text();
+    } catch {
+      body = "";
+    }
+
+    throw new InkbranchApiError(
+      INKBRANCH_API_URL,
+      path,
+      `Inkbranch API request failed with ${response.status}${body ? `: ${body}` : ""}`,
+      response.status
+    );
   }
 
   return response.json() as Promise<T>;

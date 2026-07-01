@@ -1,178 +1,85 @@
-import type { CanonCommit, Choice, MemoryUpdate, ReaderRun, SceneResult } from "@inkbranch/types";
+import type { Choice, ReaderRun, SceneResult } from "@inkbranch/types";
+import {
+  assertValidSceneResult,
+  commitChoiceToRun,
+  createNextScenePackage,
+  createReaderRun,
+  findBookById,
+  listStorySummaries,
+  renderSceneFromStoryPack,
+  resolveChoice,
+  sampleBooks
+} from "@inkbranch/core";
 import type { ChoiceInput, RunResponse, StorySummary } from "./inkbranchApi";
 
-const localStory: StorySummary = {
-  id: "book-saltglass-letter",
-  title: "The Saltglass Letter",
-  author: "Inkbranch Sample Library",
-  logline: "A courier crosses a lighthouse city with a sealed letter that can rewrite the harbor's rulers.",
-  genre: ["interactive fiction", "literary fantasy", "mystery"]
-};
+function renderLocalScene(run: ReaderRun, previousChoice?: Choice): SceneResult {
+  const book = findBookById(run.bookId, sampleBooks);
 
-function createId(prefix: string): string {
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-}
-
-function buildChoices(sceneNumber: number): Choice[] {
-  return [
-    {
-      id: `local-scene-${sceneNumber}-choice-1`,
-      label: "Inspect the seal",
-      intent: "Study the black-sealed letter before moving deeper into the harbor.",
-      risk: "low"
-    },
-    {
-      id: `local-scene-${sceneNumber}-choice-2`,
-      label: "Trust the archivist",
-      intent: "Let Orrin guide the next move through official records.",
-      risk: "medium"
-    },
-    {
-      id: `local-scene-${sceneNumber}-choice-3`,
-      label: "Take the lantern path",
-      intent: "Avoid the main quay and follow the lighthouse service walk.",
-      risk: "high"
-    }
-  ];
-}
-
-function buildScene(run: ReaderRun, previousChoice?: Choice): SceneResult {
-  const sceneNumber = run.selectedChoiceIds.length + 1;
-  const prior = previousChoice
-    ? `Mara carries the consequence of choosing to ${previousChoice.intent.toLowerCase()}`
-    : "Mara pauses at Saltglass Harbor with the black-sealed letter hidden beneath her coat.";
-
-  return {
-    chapterTitle: `Chapter ${run.currentChapter}: A Bell Below the Tide`,
-    sceneText: [
-      `${prior} The harbor lamps burn green against the wet stone, and every mirror in the lighthouse district points toward the pier.`,
-      "Orrin Tyde notices the seal before he notices Mara's face. The moment is small, but it changes the air around the letter.",
-      "The path can branch from here, but the letter remains the spine of the night."
-    ].join("\n\n"),
-    choices: buildChoices(sceneNumber),
-    stateChanges: {
-      characterUpdates: [`Mara reads the harbor's reaction in scene ${sceneNumber}.`],
-      locationUpdates: ["Saltglass Harbor remains watched by lighthouse law."],
-      canonFacts: [sceneNumber === 1 ? "Someone recognized the black seal." : `Mara continued through local scene ${sceneNumber}.`],
-      warnings: []
-    },
-    memoryUpdate: `Local scene ${sceneNumber} preserved the letter, harbor pressure, and reader choice.`
-  };
-}
-
-function createCustomChoice(run: ReaderRun, customChoiceText: string): Choice | undefined {
-  const normalizedText = customChoiceText.replace(/\s+/g, " ").trim();
-
-  if (!normalizedText) {
-    return undefined;
+  if (!book) {
+    throw new Error(`Local fallback story not found: ${run.bookId}`);
   }
 
-  return {
-    id: `local-custom-${run.id}-${run.selectedChoiceIds.length + 1}`,
-    label: normalizedText.length > 72 ? `${normalizedText.slice(0, 69)}...` : normalizedText,
-    intent: normalizedText,
-    risk: "medium"
-  };
+  const scenePackage = createNextScenePackage({
+    book,
+    run,
+    previousChoice
+  });
+  const scene = renderSceneFromStoryPack(scenePackage);
+
+  if (!scene) {
+    throw new Error(`Local fallback could not render scene: ${run.currentSceneId}`);
+  }
+
+  assertValidSceneResult(scene);
+  return scene;
 }
 
 export const localStoryService = {
   async getStories(): Promise<StorySummary[]> {
-    return [localStory];
+    return listStorySummaries(sampleBooks);
   },
 
   async startRun(bookId: string): Promise<RunResponse> {
-    const now = new Date().toISOString();
-    const run: ReaderRun = {
-      id: createId("local-run"),
-      bookId,
-      status: "active",
-      currentChapter: 1,
-      currentSceneId: "scene-saltglass-opening",
-      storyState: {
-        currentBeatId: "scene-saltglass-opening",
-        currentLocationId: "loc-saltglass-harbor",
-        flags: {},
-        relationships: {},
-        dangerLevel: 1,
-        discoveries: [],
-        turnCount: 0
-      },
-      selectedChoiceIds: [],
-      canonCommits: [],
-      memory: [],
-      startedAt: now,
-      updatedAt: now
-    };
+    const book = findBookById(bookId, sampleBooks);
+
+    if (!book) {
+      throw new Error(`Local fallback story not found: ${bookId}`);
+    }
+
+    const run = createReaderRun(book);
 
     return {
       run,
-      scene: buildScene(run)
+      scene: renderLocalScene(run)
     };
   },
 
   async choose(run: ReaderRun, scene: SceneResult, input: ChoiceInput): Promise<RunResponse> {
-    const choice = input.choiceId
-      ? scene.choices.find((candidate) => candidate.id === input.choiceId)
-      : input.customChoiceText
-        ? createCustomChoice(run, input.customChoiceText)
-        : undefined;
-
-    if (!choice) {
-      throw new Error("Choice not found.");
+    if (run.status === "completed") {
+      throw new Error("Run is already complete. Start a new run to continue.");
     }
 
-    const now = new Date().toISOString();
-    const nextChoiceCount = run.selectedChoiceIds.length + 1;
-    const memoryUpdate: MemoryUpdate = {
-      id: createId("local-memory"),
-      summary: scene.memoryUpdate,
-      characterUpdates: scene.stateChanges.characterUpdates,
-      locationUpdates: scene.stateChanges.locationUpdates,
-      canonFacts: scene.stateChanges.canonFacts,
-      warnings: scene.stateChanges.warnings,
-      createdAt: now
-    };
-    const canonCommit: CanonCommit = {
-      id: createId("local-commit"),
-      runId: run.id,
-      choiceId: choice.id,
-      summary: choice.intent,
-      canonFacts: [...scene.stateChanges.canonFacts, `Reader chose: ${choice.intent}`],
-      memoryUpdates: [memoryUpdate],
-      committedAt: now
-    };
-    const nextRun: ReaderRun = {
-      ...run,
-      currentChapter: Math.floor(nextChoiceCount / 3) + 1,
-      currentSceneId: `local-scene-${nextChoiceCount + 1}`,
-      storyState: {
-        ...run.storyState,
-        currentBeatId: `local-scene-${nextChoiceCount + 1}`,
-        turnCount: run.storyState.turnCount + 1,
-        lastChoiceResolution: input.choiceId
-          ? {
-              type: "preset",
-              interpretedIntent: choice.intent,
-              canonValidity: "valid",
-              notes: ["Local fallback preset choice."]
-            }
-          : {
-              type: "custom",
-              originalText: choice.intent,
-              interpretedIntent: choice.intent,
-              canonValidity: "valid",
-              notes: ["Local fallback custom choice."]
-            }
-      },
-      selectedChoiceIds: [...run.selectedChoiceIds, choice.id],
-      canonCommits: [...run.canonCommits, canonCommit],
-      memory: [...run.memory, memoryUpdate],
-      updatedAt: now
-    };
+    const resolvedChoice = resolveChoice(scene, run, input);
+
+    if (!resolvedChoice) {
+      throw new Error("Choice not found or custom choice was empty.");
+    }
+
+    const nextRun = commitChoiceToRun({
+      run,
+      resolvedChoice,
+      sceneResult: scene
+    });
+    const nextScene = renderLocalScene(nextRun, {
+      id: resolvedChoice.choiceId,
+      label: resolvedChoice.label,
+      intent: resolvedChoice.intent,
+      risk: resolvedChoice.risk
+    });
 
     return {
       run: nextRun,
-      scene: buildScene(nextRun, choice)
+      scene: nextScene
     };
   }
 };

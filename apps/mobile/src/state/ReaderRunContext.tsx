@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReaderRun, SceneResult } from "@inkbranch/types";
 import type { StorySummary } from "../services/inkbranchApi";
 import { storyService } from "../services/storyService";
+import type { BackendFailureWarning, StoryEngineMode } from "../services/storyService";
 
 interface ReaderRunContextValue {
   stories: StorySummary[];
@@ -12,6 +13,8 @@ interface ReaderRunContextValue {
   runHistory: ReaderRun[];
   loading: boolean;
   error?: string;
+  engineMode: StoryEngineMode;
+  backendWarning?: BackendFailureWarning;
   refreshStories: () => Promise<void>;
   startStory: (storyId: string) => Promise<void>;
   restartCurrentRun: () => Promise<void>;
@@ -39,13 +42,18 @@ export function ReaderRunProvider({ children }: PropsWithChildren) {
   const [runHistory, setRunHistory] = useState<ReaderRun[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();
+  const [engineMode, setEngineMode] = useState<StoryEngineMode>("unknown");
+  const [backendWarning, setBackendWarning] = useState<BackendFailureWarning | undefined>();
 
   const refreshStories = useCallback(async () => {
     setLoading(true);
     setError(undefined);
 
     try {
-      setStories(await storyService.getStories());
+      const result = await storyService.getStories();
+      setStories(result.data);
+      setEngineMode(result.mode);
+      setBackendWarning(result.warning);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Unable to load stories.");
     } finally {
@@ -59,9 +67,11 @@ export function ReaderRunProvider({ children }: PropsWithChildren) {
 
     try {
       const result = await storyService.startRun(storyId);
-      setCurrentRun(result.run);
-      setCurrentScene(result.scene);
-      setRunHistory((history) => upsertRun(history, result.run));
+      setEngineMode(result.mode);
+      setBackendWarning(result.warning);
+      setCurrentRun(result.data.run);
+      setCurrentScene(result.data.scene);
+      setRunHistory((history) => upsertRun(history, result.data.run));
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Unable to start story.");
     } finally {
@@ -81,9 +91,11 @@ export function ReaderRunProvider({ children }: PropsWithChildren) {
 
       try {
         const result = await storyService.choose(currentRun, currentScene, input);
-        setCurrentRun(result.run);
-        setCurrentScene(result.scene);
-        setRunHistory((history) => upsertRun(history, result.run));
+        setEngineMode(result.mode);
+        setBackendWarning(result.warning);
+        setCurrentRun(result.data.run);
+        setCurrentScene(result.data.scene);
+        setRunHistory((history) => upsertRun(history, result.data.run));
       } catch (requestError) {
         setError(requestError instanceof Error ? requestError.message : "Unable to commit choice.");
       } finally {
@@ -132,14 +144,34 @@ export function ReaderRunProvider({ children }: PropsWithChildren) {
       runHistory,
       loading,
       error,
+      engineMode,
+      backendWarning,
       refreshStories,
       startStory,
       restartCurrentRun,
       choose,
       chooseCustomChoice,
-      clearError: () => setError(undefined)
+      clearError: () => {
+        setError(undefined);
+        setBackendWarning(undefined);
+      }
     }),
-    [choose, chooseCustomChoice, currentRun, currentScene, error, loading, refreshStories, restartCurrentRun, runHistory, selectedStory, startStory, stories]
+    [
+      backendWarning,
+      choose,
+      chooseCustomChoice,
+      currentRun,
+      currentScene,
+      engineMode,
+      error,
+      loading,
+      refreshStories,
+      restartCurrentRun,
+      runHistory,
+      selectedStory,
+      startStory,
+      stories
+    ]
   );
 
   return <ReaderRunContext.Provider value={value}>{children}</ReaderRunContext.Provider>;
